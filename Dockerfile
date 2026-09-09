@@ -1,9 +1,19 @@
-FROM python:3.12-slim
+# 3.14 to match the interpreter the pinned versions were actually chosen for.
+# Four dependencies had to be bumped to find 3.14 wheels; running the container
+# on an older Python would put it on a combination nothing has ever tested.
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /code
+
+# LightGBM and scikit-learn link the OpenMP runtime, which slim images omit.
+# Without this the build succeeds and the container dies on import with
+# "libgomp.so.1: cannot open shared object file".
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first so Docker caches the pip layer across code changes.
 COPY requirements.txt .
