@@ -1,0 +1,36 @@
+{
+  "store": "CA_1",
+  "items": 401,
+  "windows": 6,
+  "horizon_days": 28,
+  "methods": {
+    "lightgbm": {
+      "rmse": 1.2591,
+      "mase": 1.3923,
+      "wrmsse": 0.8955
+    },
+    "moving_average_28d": {
+      "rmse": 1.2864,
+      "mase": 1.3807,
+      "wrmsse": 0.9328
+    },
+    "seasonal_naive": {
+      "rmse": 1.6561,
+      "mase": 1.5679,
+      "wrmsse": 1.2044
+    }
+  },
+  "interval": {
+    "quantiles": [
+      0.1,
+      0.9
+    ],
+    "coverage": 0.8026,
+    "mean_width": 2.7587
+  },
+  "trees": {
+    "point": 128,
+    "lower": 251,
+    "upper": 132
+  }
+}
