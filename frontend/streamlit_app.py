@@ -11,7 +11,21 @@ import time
 import requests
 import streamlit as st
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+def _api_url() -> str:
+    """Streamlit Community Cloud exposes secrets through st.secrets and does not
+    put them in the environment, while local runs use an env var. Checking only
+    one of the two silently falls back to localhost on the deployed app.
+    """
+    from_env = os.getenv("API_URL")
+    if from_env:
+        return from_env
+    try:
+        return st.secrets["API_URL"]
+    except Exception:
+        return "http://localhost:8000"
+
+
+API_URL = _api_url()
 
 st.set_page_config(page_title="Supply Chain Intelligence", layout="wide")
 st.title("Supply Chain Intelligence Platform")
