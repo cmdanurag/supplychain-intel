@@ -18,7 +18,10 @@ psycopg[binary]==3.2.13
 lightgbm==4.7.0
 numpy==2.5.2
 pandas==2.3.3
-pyarrow==25.0.1
+# 24.x, not 25.0.1: that release has a known segfault (apache/arrow#50471) and
+# Streamlit Community Cloud force-downgrades it on sight. predict.py reads the
+# inference snapshot through pyarrow on every cold start.
+pyarrow==24.0.0
 
 # --- Added in Stage 3B ---
 # ortools==9.11.4210
