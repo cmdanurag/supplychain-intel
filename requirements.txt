@@ -1,4 +1,9 @@
+# API and model serving. This is what the Docker image installs, so anything
+# added here ships to production - keep analysis and frontend deps out.
 # Pinned. Unpinned deps are the #1 cause of "it worked yesterday".
+#
+# Several versions below were bumped from the original plan's pins to find
+# Python 3.14 wheels; see DECISIONS.md entry 2.
 fastapi==0.141.1
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.52
@@ -8,20 +13,12 @@ python-dotenv==1.0.1
 # Postgres driver (used in production via DATABASE_URL)
 psycopg[binary]==3.2.13
 
-# Frontend
-streamlit==1.62.0
-altair==6.2.2  # streamlit's own pin (5.5.0) predates a Python 3.14 TypedDict fix
-requests==2.32.3
-
-# --- Added in Stage 3A ---
-# Original plan pinned pandas 2.2.3 / numpy 2.2.1 / lightgbm 4.5.0 / scikit-learn 1.6.0,
-# bumped for Python 3.14 wheel availability (same issue as fastapi/sqlalchemy/streamlit
-# in Phase 0). numpy/pandas versions match what streamlit already pulled in.
-pandas==2.3.3
-numpy==2.5.2
+# Serving the forecast. pyarrow is not optional: predict.py reads the inference
+# snapshot from parquet, and it used to arrive only as a streamlit dependency.
 lightgbm==4.7.0
-scikit-learn==1.9.0
-matplotlib==3.11.1
+numpy==2.5.2
+pandas==2.3.3
+pyarrow==25.0.1
 
 # --- Added in Stage 3B ---
 # ortools==9.11.4210

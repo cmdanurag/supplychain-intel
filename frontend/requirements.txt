@@ -1,0 +1,9 @@
+# Frontend only. Streamlit Community Cloud installs this; it must not pull in
+# lightgbm, psycopg or fastapi, which the UI never imports and which make the
+# deploy slow enough to time out.
+streamlit==1.62.0
+requests==2.32.3
+
+# Pinned because streamlit's own floor (5.5.0) predates a Python 3.14 TypedDict
+# fix and crashes on st.line_chart. See DECISIONS.md entry 2.
+altair==6.2.2

@@ -39,7 +39,10 @@ cd supply-chain-intel
 
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+
+# requirements.txt is the API + serving deps (what the Docker image installs).
+# requirements-dev.txt adds training, plotting and the frontend.
+pip install -r requirements-dev.txt
 
 cp .env.example .env
 
@@ -127,7 +130,7 @@ Each stage replaces one function in `app/worker.py`. Nothing else changes.
 - [x] LightGBM; compared against baselines honestly (untuned so far)
 - [x] Rolling-origin backtesting (never a random split)
 - [x] Prediction intervals via quantile regression (80.3% coverage vs 80% nominal)
-- [ ] Swap `fake_forecast()` for the real thing; redeploy
+- [x] Swap `fake_forecast()` for the real thing; redeploy
 
 ### Stage 3B checklist
 - [ ] Cost model: holding, ordering, stockout, transport — document assumptions

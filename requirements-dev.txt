@@ -1,0 +1,7 @@
+# Everything needed to train, backtest, explore and run the frontend locally.
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+-r frontend/requirements.txt
+
+# Exploratory plots only (forecasting/explore.py).
+matplotlib==3.11.1
