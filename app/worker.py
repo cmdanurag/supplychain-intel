@@ -2,18 +2,26 @@
 The worker. Stages are replaced with real implementations one at a time:
 
     Stage 3A -> DONE: fake_forecast() replaced by LightGBM
-    Stage 3B -> replace fake_optimise() with OR-Tools CP-SAT
-    Stage 3B -> replace fake_simulate() with SimPy
+    Stage 3B -> DONE: fake_optimise() replaced by OR-Tools CP-SAT
+    Stage 3B -> DONE: fake_simulate() replaced by the policy benchmark
     Stage 3C -> replace fake_explain() with an LLM tool-calling agent
 
-Nothing else in the codebase changed when the first one landed, which was the
-whole point of building the plumbing first.
+Nothing else in the codebase changed when any of them landed, which was the
+whole point of building the plumbing first. Note what the two Stage 3B stages
+each report on: `optimise` plans the window the deployed forecaster actually
+serves, which has no ground truth because it is M5's held-back future, while
+`simulate` measures policy cost on a held-out window that does. See
+optimisation/service.py for why that split is deliberate.
+
+Stage 3B is also the point where the async architecture stops being a
+precaution: a run now spends 1-3 minutes inside CP-SAT, well past the 30-60s
+request timeouts on typical hosting.
 """
 import json
-import random
 import time
 
 from forecasting import predict
+from optimisation import service as optimiser
 
 from .db import SessionLocal, Run, StageTrace, new_id, utcnow
 
@@ -29,42 +37,28 @@ def real_forecast(params: dict) -> dict:
     )
 
 
+def real_optimise(params: dict, forecast: dict) -> dict:
+    """Stage 3B: a CP-SAT multi-echelon replenishment plan for the forecast.
+
+    Costs here are what the plan projects under its own forecast, not measured
+    outcomes - that is what the simulate stage is for.
+    """
+    return optimiser.plan_for_forecast(forecast, params)
+
+
+def real_simulate(params: dict, solution: dict) -> dict:
+    """Stage 3B: the measured policy comparison, on held-out actual demand.
+
+    Every policy - ours and three baselines - is re-run here rather than having
+    its number read from a file, so the table in the UI describes the items this
+    run actually asked about.
+    """
+    return optimiser.benchmark_for_items(params, solution)
+
+
 # --------------------------------------------------------------------------
 # FAKE STAGES - replace these one at a time
 # --------------------------------------------------------------------------
-
-
-def fake_optimise(params: dict, forecast: dict) -> dict:
-    """Replace in Stage 3B with an OR-Tools CP-SAT model."""
-    time.sleep(5)
-    return {
-        "solver_status": "PLACEHOLDER",
-        "objective_value": round(random.uniform(8000, 12000), 2),
-        "solve_time_ms": 5000,
-        "orders": [
-            {"node": s["store_id"], "item": s["item_id"],
-             "reorder_point": random.randint(20, 80),
-             "order_qty": random.randint(50, 200)}
-            for s in forecast["series"]
-        ],
-    }
-
-
-def fake_simulate(params: dict, solution: dict) -> dict:
-    """Replace in Stage 3B with a SimPy simulation + benchmark policies."""
-    time.sleep(3)
-    optimised = solution["objective_value"]
-    return {
-        "policies": [
-            {"name": "optimised (ours)", "total_cost": optimised,
-             "service_level": params["service_level"]},
-            {"name": "fixed reorder point (EOQ)",
-             "total_cost": round(optimised * 1.16, 2), "service_level": 0.94},
-            {"name": "run to failure",
-             "total_cost": round(optimised * 1.48, 2), "service_level": 0.81},
-        ],
-        "improvement_vs_baseline_pct": 16.0,
-    }
 
 
 def fake_explain(params: dict, sim: dict) -> dict:
@@ -83,8 +77,8 @@ def fake_explain(params: dict, sim: dict) -> dict:
 
 STAGES = [
     ("forecast", real_forecast),
-    ("optimise", fake_optimise),
-    ("simulate", fake_simulate),
+    ("optimise", real_optimise),
+    ("simulate", real_simulate),
     ("explain", fake_explain),
 ]
 

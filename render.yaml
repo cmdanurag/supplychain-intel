@@ -1,0 +1,29 @@
+# Render Blueprint: New -> Blueprint -> pick this repo, and the API service below
+# is created from the Dockerfile with these settings.
+#
+# The solver limits are set for Render's free tier, which gives a fraction of one
+# CPU and 512 MB. At the local defaults (40 items, 15s per solve, 8 threads) a run
+# would take many minutes there. Raise them on a paid instance.
+#
+# No DATABASE_URL, so runs are stored in SQLite on the container's disk and are
+# lost when the free instance sleeps. Fine for a demo; add a Neon connection
+# string (postgresql+psycopg://...) to keep run history.
+services:
+  - type: web
+    name: supplychain-intel-api
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: MAX_OPTIMISE_ITEMS
+        value: "10"
+      - key: SOLVER_TIME_LIMIT_S
+        value: "5"
+      - key: PLANNING_HORIZON_DAYS
+        value: "14"
+      - key: SOLVER_WORKERS
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        value: "*"

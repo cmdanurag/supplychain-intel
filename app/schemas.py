@@ -16,10 +16,19 @@ class RunRequest(BaseModel):
     item_ids: list[str] = Field(default_factory=lambda: ["FOODS_1_011"], min_length=1)
     horizon_days: int = Field(default=28, ge=1, le=90)
 
-    # Optimiser knobs. Ignored in Phase 0, used from Stage 3B onward.
+    # --- Optimiser knobs. Live from Stage 3B.
+    #
+    # The two Phase 0 placeholders were flat per-unit dollar figures
+    # (`holding_cost_per_unit_day`, `stockout_penalty_per_unit`). They are gone,
+    # because the real cost model does not work that way: holding and stockout
+    # cost are derived per item from its actual M5 sell price, so a single
+    # dollar figure across a $1.68 food item and a $22.98 hobby item would have
+    # to be either ignored or applied wrongly. What the caller can still set is
+    # the *rates* applied to those measured prices, which is exactly what the
+    # model takes. See optimisation/network.py.
     service_level: float = Field(default=0.95, ge=0.5, le=0.999)
-    holding_cost_per_unit_day: float = Field(default=0.02, ge=0)
-    stockout_penalty_per_unit: float = Field(default=3.0, ge=0)
+    annual_holding_rate: float = Field(default=0.25, ge=0.0, le=2.0)
+    stockout_multiplier: float = Field(default=2.0, ge=0.0, le=20.0)
 
 
 class RunAccepted(BaseModel):

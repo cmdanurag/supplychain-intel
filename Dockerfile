@@ -21,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY forecasting ./forecasting
+# Stage 3B. Both are imported by app/worker.py, so leaving either out breaks the
+# container at the first run rather than at build time.
+COPY optimisation ./optimisation
+COPY simulation ./simulation
 COPY models ./models
 
 EXPOSE 8000

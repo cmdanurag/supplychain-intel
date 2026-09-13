@@ -24,8 +24,12 @@ pandas==2.3.3
 pyarrow==24.0.0
 
 # --- Added in Stage 3B ---
-# ortools==9.11.4210
-# simpy==4.1.1
+# 9.15.6755, not the 9.11.4210 the plan named: 9.15 is the only release with a
+# cp314 wheel, and the same no-toolchain constraint from DECISIONS.md entry 2
+# applies. It pulls protobuf to 6.x, which nothing else here pins against.
+ortools==9.15.6755
+# simpy is deliberately absent - see simulation/simulate.py for why a periodic
+# daily-review inventory model does not need a discrete-event framework.
 
 # --- Added in Stage 3C ---
 # openai==1.59.0

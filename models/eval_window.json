@@ -1,0 +1,12 @@
+{
+  "store": "CA_1",
+  "window_start": "2016-04-25",
+  "window_end": "2016-05-22",
+  "horizon_days": 28,
+  "items": 401,
+  "history_days": 56,
+  "history_start": "2016-02-29",
+  "total_actual_units": 14945,
+  "forecast_bias_units_per_day": -0.0651,
+  "interval_coverage": 0.7599
+}

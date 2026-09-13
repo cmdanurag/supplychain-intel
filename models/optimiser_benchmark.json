@@ -1,0 +1,313 @@
+{
+  "instance": {
+    "store": "CA_1",
+    "items": 60,
+    "revenue_share_of_modelled_store": 0.4995,
+    "horizon_days": 28,
+    "window": [
+      "2016-04-25",
+      "2016-05-22"
+    ],
+    "actual_units": 6001,
+    "forecast_units": 5785.7,
+    "evaluation": "policies decided on LightGBM forecasts from a model trained strictly before the window; costs scored on actual M5 sales"
+  },
+  "network": {
+    "store_id": "CA_1",
+    "n_items": 60,
+    "echelons": [
+      "supplier",
+      "dc",
+      "store"
+    ],
+    "supplier_lead_days": 7,
+    "store_lead_days": 2,
+    "dc_capacity_units": 2116,
+    "truck_capacity_units_per_day": 529,
+    "order_cost_per_line": 12.0,
+    "delivery_fixed_cost": 60.0,
+    "transport_cost_per_unit": 0.04,
+    "mean_holding_cost_store_per_unit_day": 0.00288,
+    "mean_stockout_cost_per_unit": 3.6073,
+    "mean_case_pack": 9.57,
+    "assumptions": {
+      "gross_margin": 0.3,
+      "annual_holding_rate": 0.25,
+      "stockout_multiplier": 2.0,
+      "dc_capacity_days": 10.0,
+      "truck_capacity_days": 2.5,
+      "shelf_capacity_days": 7.0,
+      "case_pack_by_category": {
+        "FOODS": 12,
+        "HOUSEHOLD": 6,
+        "HOBBIES": 4
+      },
+      "prices": "measured from M5 sell_prices.csv over the evaluation window",
+      "demand_stats": "measured over the 56 days before the window opens"
+    }
+  },
+  "protocol": {
+    "matched_on": "achieved aggregate fill rate",
+    "target_fill_rate": 0.8197,
+    "baseline_tuning": "exhaustive grid over safety factor (0 to 3.0, step 0.125) and review period; each baseline keeps its cheapest configuration that still meets the fill rate our policy achieved. The grid is exhaustive because aggregate fill rate is not monotone in the safety factor under shared truck and DC capacity",
+    "review_grid": [
+      1,
+      2,
+      3,
+      4,
+      7,
+      14
+    ],
+    "z_grid": [
+      0.0,
+      0.125,
+      0.25,
+      0.375,
+      0.5,
+      0.625,
+      0.75,
+      0.875,
+      1.0,
+      1.125,
+      1.25,
+      1.375,
+      1.5,
+      1.625,
+      1.75,
+      1.875,
+      2.0,
+      2.125,
+      2.25,
+      2.375,
+      2.5,
+      2.625,
+      2.75,
+      2.875,
+      3.0
+    ],
+    "baseline_fill_overshoot_pp": {
+      "reorder_point_eoq": 1.05,
+      "safety_stock_base_stock": 0.25,
+      "forecast_base_stock": 4.0
+    },
+    "matched_within_tolerance": true,
+    "tolerance_pp": 1.5,
+    "match_caveat": "Baselines cannot be tuned below zero safety stock, so on small instances they over-serve at their cheapest feasible setting and the cost comparison is not strictly at equal service. Check baseline_fill_overshoot_pp before quoting the headline; it is ~2.5pp on the 60-item instance and much larger on few-item ones."
+  },
+  "policies": {
+    "cpsat_rolling_horizon": {
+      "policy": "cpsat_rolling_horizon",
+      "total_cost": 5120.55,
+      "fill_rate": 0.8197,
+      "holding": 52.34,
+      "ordering": 1368.0,
+      "delivery": 600.0,
+      "freight": 154.64,
+      "stockout": 2648.38,
+      "terminal": 297.19,
+      "delivery_days": 10,
+      "po_lines": 114,
+      "mean_store_inventory": 448.0,
+      "units_short": 1082,
+      "config": {
+        "service_level": 0.95,
+        "resolve_every": 7,
+        "planning_horizon": 14
+      }
+    },
+    "reorder_point_eoq": {
+      "policy": "reorder_point_eoq",
+      "total_cost": 7178.21,
+      "fill_rate": 0.8302,
+      "holding": 57.03,
+      "ordering": 2412.0,
+      "delivery": 1500.0,
+      "freight": 169.8,
+      "stockout": 2573.08,
+      "terminal": 466.3,
+      "delivery_days": 25,
+      "po_lines": 201,
+      "mean_store_inventory": 544.6,
+      "units_short": 1019,
+      "config": {
+        "z": 0.0,
+        "review_days": 1,
+        "met_target": true
+      }
+    },
+    "safety_stock_base_stock": {
+      "policy": "safety_stock_base_stock",
+      "total_cost": 8118.94,
+      "fill_rate": 0.8222,
+      "holding": 49.41,
+      "ordering": 3804.0,
+      "delivery": 600.0,
+      "freight": 162.0,
+      "stockout": 2803.76,
+      "terminal": 699.76,
+      "delivery_days": 10,
+      "po_lines": 317,
+      "mean_store_inventory": 517.0,
+      "units_short": 1067,
+      "config": {
+        "z": 1.375,
+        "review_days": 3,
+        "met_target": true
+      }
+    },
+    "forecast_base_stock": {
+      "policy": "forecast_base_stock",
+      "total_cost": 7870.81,
+      "fill_rate": 0.8597,
+      "holding": 52.59,
+      "ordering": 4068.0,
+      "delivery": 780.0,
+      "freight": 171.52,
+      "stockout": 2185.62,
+      "terminal": 613.07,
+      "delivery_days": 13,
+      "po_lines": 339,
+      "mean_store_inventory": 493.8,
+      "units_short": 842,
+      "config": {
+        "z": 1.125,
+        "review_days": 2,
+        "met_target": true
+      }
+    },
+    "perfect_information": {
+      "policy": "perfect_information",
+      "total_cost": 4457.48,
+      "fill_rate": 0.8375,
+      "holding": 41.97,
+      "ordering": 1380.0,
+      "delivery": 660.0,
+      "freight": 153.16,
+      "stockout": 1963.39,
+      "terminal": 258.97,
+      "delivery_days": 11,
+      "po_lines": 115,
+      "mean_store_inventory": 312.0,
+      "units_short": 975,
+      "config": {
+        "note": "same CP-SAT controller, fed actual demand"
+      }
+    }
+  },
+  "headline": {
+    "cost_reduction_vs_reorder_point_pct": 28.67,
+    "cost_reduction_vs_best_baseline_pct": 28.67,
+    "best_baseline": "reorder_point_eoq",
+    "cost_reduction_vs_forecast_base_stock_pct": 34.94,
+    "gap_to_perfect_information_pct": 12.95,
+    "at_fill_rate": 0.8197
+  },
+  "perfect_information_caveat": "Not a lower bound, and deliberately not presented as one. It is the same receding-horizon controller, which plans 14 days, commits 7, and is therefore myopic about everything past the planning window - so perfect demand knowledge inside that window does not guarantee a cheaper outcome over the full horizon, and a forecast error that happens to favour the committed decisions can beat it. Its job is to price the value of information, not to bound the problem.",
+  "ablation": {
+    "note": "forecast_base_stock uses the identical decision rule to safety_stock_base_stock and differs only in taking its lead-time demand from the LightGBM forecast, so the step between them prices the forecast and the step from it to CP-SAT prices the optimiser. The two percentages have different denominators, named in their keys, because the chain of policies is not monotone in cost - stating a single shared denominator would imply a decomposition that does not hold.",
+    "forecast_step_pct_of_safety_stock": 3.06,
+    "optimiser_step_pct_of_forecast_base_stock": 34.94,
+    "dollars": {
+      "safety_stock_base_stock": 8118.94,
+      "forecast_base_stock": 7870.81,
+      "cpsat_rolling_horizon": 5120.55,
+      "forecast_step_usd": 248.13,
+      "optimiser_step_usd": 2750.26
+    }
+  },
+  "cost_mechanism": {
+    "note": "where the saving actually comes from. Holding cost is a rounding error at grocery margins; the optimiser wins by consolidating the fixed costs a per-item rule cannot see.",
+    "po_lines": {
+      "reorder_point_eoq": 201,
+      "safety_stock_base_stock": 317,
+      "forecast_base_stock": 339,
+      "cpsat_rolling_horizon": 114
+    },
+    "delivery_days": {
+      "reorder_point_eoq": 25,
+      "safety_stock_base_stock": 10,
+      "forecast_base_stock": 13,
+      "cpsat_rolling_horizon": 10
+    }
+  },
+  "solver": {
+    "solves": 4,
+    "statuses": [
+      "FEASIBLE",
+      "FEASIBLE",
+      "FEASIBLE",
+      "OPTIMAL"
+    ],
+    "total_solve_time_ms": 91025,
+    "max_solve_time_ms": 30138,
+    "mean_gap_pct": 25.327,
+    "relaxations": [
+      "per-item service floor of 80% dropped: instance was INFEASIBLE with it",
+      "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+      "per-item service floor of 80% dropped: instance was INFEASIBLE with it",
+      "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+      "per-item service floor of 80% dropped: instance was INFEASIBLE with it",
+      "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it"
+    ]
+  },
+  "feasibility_repairs": {
+    "reorder_point_eoq": {
+      "truck_capacity": 1,
+      "dc_capacity": 21,
+      "shelf_space": 115,
+      "dc_stock": 180
+    },
+    "safety_stock_base_stock": {
+      "truck_capacity": 4,
+      "dc_capacity": 10,
+      "shelf_space": 171,
+      "dc_stock": 333
+    },
+    "forecast_base_stock": {
+      "truck_capacity": 0,
+      "dc_capacity": 13,
+      "shelf_space": 52,
+      "dc_stock": 272
+    },
+    "cpsat_rolling_horizon": {
+      "truck_capacity": 0,
+      "dc_capacity": 2,
+      "shelf_space": 27,
+      "dc_stock": 0
+    }
+  },
+  "per_item_fill_quantiles": {
+    "0.05": 0.5266,
+    "0.25": 0.7405,
+    "0.5": 0.8493,
+    "0.75": 0.9543
+  },
+  "repeats": {
+    "runs": 6,
+    "reduction_vs_reorder_point_pct": {
+      "mean": 25.61,
+      "min": 23.24,
+      "max": 28.6,
+      "std": 1.99,
+      "values": [
+        28.6,
+        24.68,
+        26.9,
+        23.24,
+        26.18,
+        24.04
+      ]
+    },
+    "our_cost_usd": {
+      "mean": 5340.23,
+      "min": 5125.49,
+      "max": 5510.24
+    },
+    "achieved_fill_rate": {
+      "mean": 0.8122,
+      "min": 0.8014,
+      "max": 0.8217
+    },
+    "why": "CP-SAT searches on 8 threads under a wall-clock limit and does not prove optimality at this size, so each run commits a slightly different plan. The benchmark then tunes the baselines to whatever fill rate that plan achieved, so solver noise moves our cost and the bar together and the headline moves more than either. Report the mean and range."
+  }
+}

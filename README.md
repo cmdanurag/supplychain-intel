@@ -2,10 +2,13 @@
 
 Demand forecasting → inventory optimisation → scenario analysis, deployed as an async service.
 
-> **Status: Stage 3A complete, not yet deployed.** The plumbing is real and the
-> forecasting stage is a real LightGBM model with quantile intervals, serving in
-> ~20ms from precomputed features. Optimise, simulate and explain are still
-> placeholders that sleep and return synthetic numbers. Nothing is on a public URL
+> **Status: Stages 3A and 3B complete, not yet deployed.** Forecasting is a real
+> LightGBM model with calibrated quantile intervals, serving in ~20ms from
+> precomputed features. Optimisation is a real OR-Tools CP-SAT multi-echelon
+> model, re-solved on a rolling horizon and benchmarked against three classical
+> inventory policies on held-out demand — **25.6% cheaper than a tuned fixed
+> reorder-point policy at matched service level** (range 23.2–28.6% over 6 runs).
+> Only `explain` (Stage 3C) is still a placeholder. Nothing is on a public URL
 > yet — see [Roadmap](#roadmap).
 
 ---
@@ -46,6 +49,19 @@ pip install -r requirements-dev.txt
 
 cp .env.example .env
 
+# Build the model artifacts the service loads. Both are offline steps; the API
+# never touches the raw CSVs.
+python -m forecasting.train        # rolling-origin backtest -> metrics + tree counts
+python -m forecasting.fit          # Stage 3A: deployed models + inference snapshot
+python -m optimisation.evalset     # Stage 3B: held-out forecasts + actuals + demand stats
+python -m optimisation.benchmark   # Stage 3B: the policy comparison (~3 min)
+
+# Invariant checks for Stage 3B. The solver and the simulator are two separate
+# models of the same system; this asserts they agree to the cent on a plan's
+# cost, and that no policy escapes a capacity constraint. Run after touching
+# either. Exits non-zero on failure.
+python -m optimisation.verify
+
 # Terminal 1 — API
 uvicorn app.main:app --reload
 
@@ -61,7 +77,7 @@ schemas, and they are a legitimate thing to screenshot for your README.
 ```bash
 RUN_ID=$(curl -s -X POST http://localhost:8000/api/runs \
   -H "Content-Type: application/json" \
-  -d '{"store_ids":["CA_1"],"item_ids":["FOODS_3_090"],"horizon_days":28}' \
+  -d '{"store_ids":["CA_1"],"item_ids":["FOODS_1_011"],"horizon_days":28}' \
   | python -c "import sys,json;print(json.load(sys.stdin)['run_id'])")
 
 # Poll a few times and watch the stage change
@@ -103,7 +119,12 @@ app/
   main.py      FastAPI routes — POST /api/runs, GET /api/runs/{id}
   schemas.py   Pydantic models; every boundary is typed
   db.py        SQLAlchemy models (runs, stage_traces) + session
-  worker.py    pipeline runner + the four placeholder stages
+  worker.py    pipeline runner + the four pipeline stages
+forecasting/   Stage 3A — data, features, baselines, training, serving
+optimisation/  Stage 3B — network/cost model, CP-SAT solver, policies,
+               evaluation window, benchmark harness, serving entry points
+simulation/
+  simulate.py  the daily-bucket simulator every policy is scored in
 frontend/
   streamlit_app.py   polling client + results UI
 Dockerfile
@@ -118,9 +139,9 @@ Each stage replaces one function in `app/worker.py`. Nothing else changes.
 
 | Stage | Replace | With | Difficulty |
 |---|---|---|---|
-| **3A** | `fake_forecast()` | LightGBM on M5 data, rolling-origin backtested | 6 |
-| **3B** | `fake_optimise()` | OR-Tools CP-SAT multi-echelon inventory model | 8 |
-| **3B** | `fake_simulate()` | SimPy playout + EOQ / reorder-point benchmarks | 8 |
+| **3A** ✅ | `fake_forecast()` | LightGBM on M5 data, rolling-origin backtested | 6 |
+| **3B** ✅ | `fake_optimise()` | OR-Tools CP-SAT multi-echelon inventory model | 8 |
+| **3B** ✅ | `fake_simulate()` | Daily-bucket playout + 3 classical benchmark policies | 8 |
 | **3C** | `fake_explain()` | LLM tool-calling agent for what-if scenarios | 9 |
 
 ### Stage 3A checklist
@@ -133,13 +154,22 @@ Each stage replaces one function in `app/worker.py`. Nothing else changes.
 - [x] Swap `fake_forecast()` for the real thing; redeploy
 
 ### Stage 3B checklist
-- [ ] Cost model: holding, ordering, stockout, transport — document assumptions
-- [ ] CP-SAT model, small first (1 DC, 3 stores, 5 items, 14 days)
-- [ ] Constraints: capacity, lead times, MOQ, service level, truck capacity
-- [ ] Rolling-horizon re-optimisation every 7 simulated days
-- [ ] SimPy simulator + three benchmark policies
-- [ ] Solver time limit so a bad input cannot hang the worker
-- [ ] Move from BackgroundTasks to RQ + Redis if runs exceed ~2 min
+- [x] Cost model: holding, ordering, stockout, transport — derived from real M5
+      sell prices where derivable, assumptions named in `optimisation/network.py`
+- [x] CP-SAT model, built small first (10 items, 14 days) before scaling to 60
+- [x] Constraints: DC/shelf/truck capacity, two lead times, case-pack MOQ,
+      aggregate **and** per-item service level
+- [x] Rolling-horizon re-optimisation — plan 14 days, commit 7
+- [x] Simulator + three benchmark policies + a perfect-information reference
+      (plain daily-bucket, not SimPy — see DECISIONS.md entry 20)
+- [x] Solver time limit, plus a relaxation ladder so an infeasible instance
+      explains itself instead of returning an empty plan
+- [x] Cross-model verification: `optimisation/verify.py` asserts the solver and
+      the simulator charge a plan the same cost, term by term
+- [ ] Replace the moving service bar with a fixed cost-service frontier — the
+      current protocol amplifies solver noise (see Results, and DECISIONS.md 23)
+- [ ] Move from BackgroundTasks to RQ + Redis — a 60-item run takes ~3 min, so
+      this is now the next real task, not a hypothetical one
 
 ### Stage 3C checklist
 - [ ] Expose `forecast`, `optimise`, `simulate` as agent tools
@@ -152,13 +182,80 @@ Each stage replaces one function in `app/worker.py`. Nothing else changes.
 
 ## Results
 
-> Fill this in as you go. **This table is the most important part of the README.**
+### Stage 3B — inventory optimisation
 
-| Policy | Total cost | Service level |
-|---|---|---|
-| Optimised (ours) | — | — |
-| Fixed reorder point (EOQ) | — | — |
-| Run to failure | — | — |
+**A CP-SAT rolling-horizon policy costs 25.6% less than a tuned fixed
+reorder-point policy at the same achieved service level** — mean over 6 runs,
+range 23.2–28.6%, sd 2.0.
+
+The range is quoted rather than a single figure because CP-SAT does not prove
+optimality at this size and commits a slightly different plan each run. Any
+single run is worth ±3 points; see [DECISIONS.md](DECISIONS.md) entry 23 for how
+that was found, and for the tuning bug it uncovered.
+
+One representative run (the one stored in `models/optimiser_benchmark.json`, at
+28.7%):
+
+| Policy | Total cost | Fill rate | Holding | Stockout | PO lines | Delivery days |
+|---|---|---|---|---|---|---|
+| Fixed reorder point (EOQ) | $7,178.21 | 83.0% | $57.03 | $2,573.08 | 201 | 25 |
+| Safety stock (z·σ·√L) | $8,118.94 | 82.2% | $49.41 | $2,803.76 | 317 | 10 |
+| Forecast base-stock | $7,870.81 | 86.0% | $52.59 | $2,185.62 | 339 | 13 |
+| **CP-SAT rolling horizon (ours)** | **$5,120.55** | 82.0% | $52.34 | $2,648.38 | **114** | **10** |
+| *Perfect information (reference)* | *$4,457.48* | *83.8%* | *$41.97* | *$1,963.39* | — | — |
+
+Scope: store `CA_1`, the 60 largest items by revenue (49.9% of the modelled
+store's revenue), 28 days, 6,001 actual units. Plan 14 days, commit 7, re-solve.
+
+**How the comparison is made, which matters more than the number.** Any
+inventory policy can be made cheaper by holding less and serving fewer
+customers, so cost alone is meaningless. The protocol:
+
+1. The CP-SAT policy runs at its 95% service target, and whatever fill rate it
+   *achieves* becomes the bar.
+2. Each baseline is then tuned to clear that same bar as cheaply as it can — an
+   exhaustive grid over safety factor (0 to 3.0, step 0.125) crossed with review
+   period {1,2,3,4,7,14}, keeping its cheapest qualifying configuration.
+   Baselines get their best shot deliberately.
+3. Only then are costs compared.
+
+A baseline cannot be tuned below zero safety stock, so on a small instance it
+over-serves at its cheapest feasible setting and the comparison stops being
+equal-service. The overshoot is reported with every run and flagged past 1.5
+points; here the comparator over-serves by 1.1 points.
+
+Policies are decided on LightGBM forecasts from a model trained strictly before
+the window and scored on **actual M5 sales it never saw** (2016-04-25 to
+2016-05-22). The served forecast window has no ground truth anywhere in this
+repo — it is M5's held-back future — which is why the benchmark runs one window
+earlier; see [DECISIONS.md](DECISIONS.md) entry 13.
+
+**Where the saving comes from, and where it does not.** Not from holding less
+stock. Holding cost is $52 of a $5,121 total, because grocery carrying cost is
+fractions of a cent per unit-day — a $1.68 item at a 25% annual rate carries for
+about 0.08 cents a day. The whole advantage is consolidating the fixed costs a
+per-item reorder rule structurally cannot see: a fixed cost per purchase-order
+line, and a fixed cost per delivery day shared by every item on the truck.
+**114 PO lines against 201, and 10 delivery days against 25**, at a comparable
+stockout bill. That is a joint-replenishment result, not a safety-stock one.
+
+**Ablation — forecast or optimiser?** `forecast_base_stock` is the identical
+decision rule to `safety_stock_base_stock`, differing only in taking its
+lead-time demand from the LightGBM forecast instead of trailing history. That
+step is worth **3.1%** ($248). Replacing the rule with the optimiser is worth a
+further **34.9%** ($2,750). So nearly all of the gain is the optimisation, not
+the forecast — worth knowing before claiming either, and consistent with a cost
+structure dominated by fixed charges that a forecast cannot help with.
+
+Feeding the same controller actual demand instead of forecasts costs 12.9% less
+than our policy, which prices what the forecast error is worth. It is a
+reference, not a lower bound — see [DECISIONS.md](DECISIONS.md) entry 21.
+
+Reproduce with `python -m optimisation.benchmark --items 60 --repeat 6`; full
+output, including per-item fill quantiles and every constraint relaxation, in
+`models/optimiser_benchmark.json`.
+
+### Stage 3A — forecasting
 
 Scope: store `CA_1`, 401 items sampled stratified by department (proportional to
 each department's real size; seed 42, reproducible). 65.0% zero-sales days, against
@@ -231,10 +328,51 @@ feature-design flaw that made LightGBM lose to a moving average.
 
 ## Assumptions and limitations
 
-> Fill this in honestly. Stating where your model is weak reads as seniority.
+**Stage 3B**
 
+- **The optimiser is not solving to optimality at scale.** At 60 items the
+  committed solves leave a mean 25% optimality gap inside their 30s budget; this
+  is a capacitated joint-replenishment problem and it is NP-hard. The reported
+  saving is what the policy *actually achieved* in simulation, so a better solve
+  can only improve it — but our plans are not optimal, 25.6% is not the
+  formulation's ceiling, and this is why the headline is quoted as a range.
+- **95% is a planning target, and often not even a binding constraint.**
+  Realised fill is ~81%, for two separate reasons both worth stating. The point
+  forecast under-predicts this window by ~5% in total units, so serving 95% of
+  forecast demand serves less of real demand. And mid-window the target is
+  frequently *unsatisfiable* — the first two days of any horizon can only be
+  served from stock already on the shelf — so the relaxation ladder drops it and
+  availability is then driven by stockout penalties alone. The representative run
+  records 6 such relaxations across 4 solves. That is economically sensible
+  behaviour and every instance of it is reported, but it means the service level
+  is not a guarantee. Making it a soft constraint with a steep penalty, rather
+  than a hard one that switches off, is the better design and is not yet done.
+- **The cost structure drives the result.** With a $12 purchase-order line and a
+  $60 delivery, fixed costs dominate and the optimiser's edge is consolidation.
+  Lower those and the margin narrows. The delivery cost is itself an allocation —
+  a real truck serves far more than 60 items — so it stands in for a share of one.
+- **Aggregate fill rate hides per-item misery, and here it does.** A per-item
+  80% floor is imposed to stop the solver meeting the aggregate by abandoning
+  awkward items, but it is dropped whenever it makes an instance infeasible. The
+  result is a wide spread: median item fill 84.9%, but the 5th percentile is
+  **52.7%**. An aggregate number would not show that, so the quantiles are in
+  the benchmark JSON.
+- **The comparison protocol still amplifies noise.** The service bar moves with
+  whatever fill rate our policy happens to achieve, so solver variation shifts
+  our cost and the baselines' target together. Comparing cost-service
+  *frontiers* over a fixed grid of service levels would remove the coupling
+  entirely, and is the first thing to fix next.
+- **Two echelons, one store.** The network code takes arbitrarily many stores;
+  the deployed forecaster covers one, so the demo instance is supplier → DC →
+  single store with items competing for shared DC, shelf and truck capacity.
 - Distribution-centre layer is synthetic; M5 provides store-level data only.
+  Lead times, capacities, case packs and the fixed-cost structure are stated
+  assumptions in `optimisation/network.py`, not measurements. Prices, and the
+  demand statistics the policies are parameterised from, are real.
 - Cost parameters are estimated, not from a real firm.
+
+**Stage 3A**
+
 - Baseline numbers above cover one store (`CA_1`) and 401 of its ~3,049 items.
   Department composition is representative, but a single store is not: `CA_1` has
   its own SNAP calendar and price levels, so cross-store variation is untested.
