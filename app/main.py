@@ -33,8 +33,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Supply Chain Intelligence API",
-    version="0.1.0-phase0",
-    description="Phase 0 skeleton: real plumbing, placeholder logic.",
+    version="0.3.0",
+    description=(
+        "Demand forecasting (LightGBM) and multi-echelon inventory optimisation "
+        "(OR-Tools CP-SAT), benchmarked on held-out M5 sales. Runs are async: "
+        "POST /api/runs returns a run_id, then poll GET /api/runs/{run_id}. "
+        "The explain stage (3C) is still a placeholder."
+    ),
     lifespan=lifespan,
 )
 
@@ -58,7 +63,7 @@ def root():
 @app.get("/health")
 def health():
     """Hosts ping this. Keep it dependency-free and fast."""
-    return {"status": "ok", "phase": "0"}
+    return {"status": "ok", "stages": ["forecast", "optimise", "simulate"]}
 
 
 @app.get("/api/catalog")

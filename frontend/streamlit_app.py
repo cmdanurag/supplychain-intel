@@ -39,8 +39,24 @@ def load_catalog() -> dict:
     return response.json()
 
 
+def wait_for_catalog(attempts: int = 9) -> dict:
+    """Render's free tier sleeps an idle API, and waking it takes 30-60s. A
+    single 10s request made the first visitor after a quiet spell see an error
+    for a service that was only starting up, so retry for up to ~90s.
+    """
+    for attempt in range(attempts):
+        try:
+            return load_catalog()
+        except requests.RequestException:
+            if attempt == attempts - 1:
+                raise
+            with st.spinner("Waking the API - the free host sleeps when idle, "
+                            "this can take up to a minute..."):
+                time.sleep(10)
+
+
 try:
-    catalog = load_catalog()
+    catalog = wait_for_catalog()
 except requests.RequestException as exc:
     st.error(f"Could not load the model catalog from {API_URL}: {exc}")
     st.stop()
