@@ -2,14 +2,36 @@
 
 Demand forecasting → inventory optimisation → scenario analysis, deployed as an async service.
 
-> **Status: Stages 3A and 3B complete, not yet deployed.** Forecasting is a real
-> LightGBM model with calibrated quantile intervals, serving in ~20ms from
-> precomputed features. Optimisation is a real OR-Tools CP-SAT multi-echelon
-> model, re-solved on a rolling horizon and benchmarked against three classical
+> **Status: Stages 3A and 3B are live.** Forecasting is a real LightGBM model
+> with calibrated quantile intervals, serving in ~20ms from precomputed
+> features. Optimisation is a real OR-Tools CP-SAT multi-echelon model,
+> re-solved on a rolling horizon and benchmarked against three classical
 > inventory policies on held-out demand — **25.6% cheaper than a tuned fixed
 > reorder-point policy at matched service level** (range 23.2–28.6% over 6 runs).
-> Only `explain` (Stage 3C) is still a placeholder. Nothing is on a public URL
-> yet — see [Roadmap](#roadmap).
+> Only `explain` (Stage 3C) is still a placeholder — see [Roadmap](#roadmap).
+
+### Live demo
+
+| | |
+|---|---|
+| **App** | https://supplychain-intel.streamlit.app |
+| **API docs** | https://supplychain-intel.onrender.com/docs |
+| **Health** | https://supplychain-intel.onrender.com/health |
+
+Both run on free tiers, so **the API sleeps when idle and takes 30–60s to wake**
+— the app shows a spinner while it does. A demo run of 8 items takes ~50s end to
+end there (forecast 1.5s, optimise 5.3s, simulate 42s), against ~35s locally.
+
+Two things to know before reading the demo's numbers:
+
+- The deployed solver is deliberately throttled (`MAX_OPTIMISE_ITEMS=10`,
+  `SOLVER_TIME_LIMIT_S=5`, `SOLVER_WORKERS=1`) to fit a fraction of one CPU and
+  512MB. Locally it runs 40 items, 15s and 8 threads.
+- A cost reduction measured on 8 items is **not** the headline. Baselines cannot
+  be tuned below zero safety stock, so on a small item set they over-serve and
+  the comparison flatters us; the UI warns when that happens. The 25.6% figure
+  is a 60-item instance — reproduce it with
+  `python -m optimisation.benchmark --items 60 --repeat 6`.
 
 ---
 
@@ -86,29 +108,43 @@ curl -s http://localhost:8000/api/runs/$RUN_ID | python -m json.tool
 
 ---
 
-## Deploy (do this on day one, before any modelling)
+## Deploy
 
-**Backend — Render**
+Both targets rebuild on a push to `main`.
 
-1. Push this repo to GitHub.
-2. Render → New → Web Service → connect the repo.
-3. Runtime: **Docker**. Render detects the `Dockerfile` automatically.
-4. Environment variables: `DATABASE_URL`, `ALLOWED_ORIGINS`.
-5. Health check path: `/health`.
+**Backend — Render** (Docker, free plan, health check `/health`)
 
-**Database — Neon**
+The image copies `app/`, `forecasting/`, `optimisation/`, `simulation/` and the
+committed `models/` artifacts; the raw M5 CSVs in `data/` never ship. Solver
+limits are environment variables rather than constants precisely so the same
+image runs on a laptop and on a fraction of a CPU:
 
-1. Create a free Postgres project at neon.tech.
-2. Copy the connection string, convert the prefix to `postgresql+psycopg://`.
-3. Paste it into Render as `DATABASE_URL`.
+| Variable | Free tier | Local default |
+|---|---|---|
+| `MAX_OPTIMISE_ITEMS` | `10` | 40 |
+| `SOLVER_TIME_LIMIT_S` | `5` | 15 |
+| `SOLVER_WORKERS` | `1` | 8 |
+| `PLANNING_HORIZON_DAYS` | `14` | 14 |
+| `ALLOWED_ORIGINS` | `*` | `*` |
+
+`render.yaml` carries these settings for a fresh Blueprint deploy.
 
 **Frontend — Streamlit Community Cloud**
 
-1. share.streamlit.io → deploy from the same repo.
-2. Main file: `frontend/streamlit_app.py`.
-3. Secrets: `API_URL = "https://your-service.onrender.com"`.
+Main file `frontend/streamlit_app.py`, with one secret:
+`API_URL = "https://supplychain-intel.onrender.com"`. Streamlit Cloud exposes
+secrets through `st.secrets` and *not* the environment, which is why the app
+checks both.
 
-Once both URLs load, Phase 0 is done. Everything after this is filling in logic.
+**Database**
+
+No `DATABASE_URL` is set, so runs are stored in SQLite inside the container and
+are lost when the free instance sleeps — acceptable for a demo. Setting a Neon
+connection string (`postgresql+psycopg://...`) is the only change needed to keep
+run history; the SQLAlchemy layer already handles it.
+
+**Measured on the deployed free instance** (8 items, 28-day horizon): 51s total,
+peak memory ~233MB of 512MB.
 
 ---
 
