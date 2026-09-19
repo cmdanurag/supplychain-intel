@@ -151,12 +151,25 @@ def build_network(
     store_id: str,
     stockout_multiplier: float = STOCKOUT_MULTIPLIER,
     holding_rate: float = ANNUAL_HOLDING_RATE,
+    supplier_lead_days: int = SUPPLIER_LEAD_DAYS,
+    store_lead_days: int = STORE_LEAD_DAYS,
+    dc_capacity_days: float = DC_CAPACITY_DAYS,
+    truck_capacity_days: float = TRUCK_CAPACITY_DAYS,
+    shelf_capacity_days: float = SHELF_CAPACITY_DAYS,
+    order_cost_per_line: float = ORDER_COST_PER_LINE,
+    delivery_fixed_cost: float = DELIVERY_FIXED_COST,
+    transport_cost_per_unit: float = TRANSPORT_COST_PER_UNIT,
 ) -> Network:
     """Resolve per-item economics from real prices and recent demand statistics.
 
     `history` needs one row per item with `sell_price`, `mean_daily`,
     `sigma_daily` - what evalset.build() writes. Prices and demand levels are
     measured; the rates applied to them are the assumptions named above.
+
+    Every structural parameter is an argument rather than a constant read at use
+    site, because Stage 3C's what-if questions ("lead time doubles", "we lose a
+    third of the truck") are exactly these numbers changing. The module-level
+    constants remain the defaults, so an unparameterised call is unchanged.
     """
     required = {"item_id", "sell_price", "mean_daily", "sigma_daily"}
     missing = required - set(history.columns)
@@ -181,7 +194,7 @@ def build_network(
             case_pack=_case_pack(str(row.item_id)),
             shelf_capacity=max(
                 SHELF_CAPACITY_FLOOR,
-                int(np.ceil(SHELF_CAPACITY_DAYS * float(row.mean_daily))),
+                int(np.ceil(shelf_capacity_days * float(row.mean_daily))),
             ),
             mean_daily=float(row.mean_daily),
             sigma_daily=float(row.sigma_daily),
@@ -191,15 +204,23 @@ def build_network(
     return Network(
         store_id=store_id,
         items=items,
-        dc_capacity=int(np.ceil(DC_CAPACITY_DAYS * total_mean)),
-        truck_capacity=int(np.ceil(TRUCK_CAPACITY_DAYS * total_mean)),
+        supplier_lead_days=int(supplier_lead_days),
+        store_lead_days=int(store_lead_days),
+        order_cost_per_line=float(order_cost_per_line),
+        delivery_fixed_cost=float(delivery_fixed_cost),
+        transport_cost_per_unit=float(transport_cost_per_unit),
+        # Capacities are sized from *measured* mean demand, so a scenario that
+        # raises demand does not silently grow the warehouse and the truck along
+        # with it - the squeeze is the whole point of asking the question.
+        dc_capacity=int(np.ceil(dc_capacity_days * total_mean)),
+        truck_capacity=int(np.ceil(truck_capacity_days * total_mean)),
         assumptions={
             "gross_margin": GROSS_MARGIN,
             "annual_holding_rate": holding_rate,
             "stockout_multiplier": stockout_multiplier,
-            "dc_capacity_days": DC_CAPACITY_DAYS,
-            "truck_capacity_days": TRUCK_CAPACITY_DAYS,
-            "shelf_capacity_days": SHELF_CAPACITY_DAYS,
+            "dc_capacity_days": dc_capacity_days,
+            "truck_capacity_days": truck_capacity_days,
+            "shelf_capacity_days": shelf_capacity_days,
             "case_pack_by_category": CASE_PACK_BY_CATEGORY,
             "prices": "measured from M5 sell_prices.csv over the evaluation window",
             "demand_stats": "measured over the 56 days before the window opens",
