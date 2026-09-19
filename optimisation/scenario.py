@@ -248,6 +248,7 @@ def compare(
     planning_horizon: int = 14,
     time_limit_s: float = 10.0,
     base: Scenario | None = None,
+    on_stage=None,
 ) -> dict:
     """Run the same policy under `base` and under `scenario`, and diff them.
 
@@ -270,7 +271,11 @@ def compare(
         chosen = select_items(history, n_items)
 
     results = {}
-    for key, spec in (("base", base), ("scenario", scenario)):
+    for index, (key, spec) in enumerate((("base", base), ("scenario", scenario))):
+        # Each leg is a minute of solving on a small host, so the caller gets a
+        # say-what-you-are-doing hook rather than a silent wait.
+        if on_stage is not None:
+            on_stage(key, index)
         network = build_network(chosen, meta["store"], **spec.network_kwargs())
         ids = network.item_ids
         actual = _scale(_series(evalframe, ids, "demand"), spec.demand_pct)

@@ -19,10 +19,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from forecasting import predict
+from optimisation import service as optimiser
 
 from .db import init_db, get_session, Run, StageTrace, new_id
-from .schemas import RunRequest, RunAccepted, RunStatus, StageTraceOut
-from .worker import run_pipeline
+from .schemas import (
+    RunRequest, RunAccepted, RunStatus, ScenarioRequest, StageTraceOut,
+)
+from .worker import run_pipeline, run_scenario
 
 
 @asynccontextmanager
@@ -98,6 +101,39 @@ def create_run(
         status=run.status,
         poll_url=f"/api/runs/{run.id}",
     )
+
+
+@app.get("/api/scenarios/presets")
+def scenario_presets():
+    """The one-click what-if questions, and the bounds on a custom one."""
+    return optimiser.scenario_presets()
+
+
+@app.post("/api/scenarios", response_model=RunAccepted, status_code=202)
+def create_scenario(
+    req: ScenarioRequest,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    """Stage 3C: ask what happens if the network changes.
+
+    Same async contract as /api/runs, and the same polling endpoint, because a
+    scenario is two solves and outlives an HTTP request just as a pipeline does.
+    Rejecting an impossible question here, synchronously, is better than
+    accepting it and failing a job the caller has to poll for.
+    """
+    try:
+        optimiser.validate_scenario(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    run = Run(id=new_id(), params_json=req.model_dump_json(), status="queued")
+    session.add(run)
+    session.commit()
+    background.add_task(run_scenario, run.id)
+
+    return RunAccepted(run_id=run.id, status=run.status,
+                       poll_url=f"/api/runs/{run.id}")
 
 
 @app.get("/api/runs/{run_id}", response_model=RunStatus)

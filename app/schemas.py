@@ -31,6 +31,34 @@ class RunRequest(BaseModel):
     stockout_multiplier: float = Field(default=2.0, ge=0.0, le=20.0)
 
 
+class ScenarioRequest(BaseModel):
+    """A what-if question, as parameters rather than prose.
+
+    Stage 3C's first half. Bounds are duplicated from optimisation/scenario.py
+    on purpose: this layer rejects a bad request before a job is ever created,
+    and the domain layer re-checks because it is also reachable from the CLI.
+    A field left unset means "unchanged from the base network".
+    """
+    item_ids: list[str] = Field(default_factory=list)
+    horizon_days: int = Field(default=28, ge=7, le=90)
+
+    # Either name a preset, or set fields directly. A preset plus overrides is
+    # allowed, and the overrides win.
+    preset: str | None = None
+
+    supplier_lead_days: int | None = Field(default=None, ge=1, le=28)
+    store_lead_days: int | None = Field(default=None, ge=0, le=14)
+    demand_pct: float | None = Field(default=None, ge=0.5, le=2.0)
+    dc_capacity_pct: float | None = Field(default=None, ge=0.3, le=3.0)
+    truck_capacity_pct: float | None = Field(default=None, ge=0.3, le=3.0)
+    shelf_capacity_pct: float | None = Field(default=None, ge=0.3, le=3.0)
+    order_cost_pct: float | None = Field(default=None, ge=0.0, le=5.0)
+    delivery_cost_pct: float | None = Field(default=None, ge=0.0, le=5.0)
+    stockout_multiplier: float | None = Field(default=None, ge=0.5, le=20.0)
+    annual_holding_rate: float | None = Field(default=None, ge=0.0, le=2.0)
+    service_level: float | None = Field(default=None, ge=0.5, le=0.999)
+
+
 class RunAccepted(BaseModel):
     """Returned immediately. The whole point of the async pattern."""
     run_id: str

@@ -29,7 +29,7 @@ import os
 
 import numpy as np
 
-from . import benchmark, evalset
+from . import benchmark, evalset, scenario as scenarios
 from .cpsat import State, integerise_demand, solve
 from .network import build_network, select_items
 
@@ -220,3 +220,82 @@ def benchmark_for_items(params: dict, optimise_result: dict | None = None) -> di
         "solver": report["solver"],
         "feasibility_repairs": report["feasibility_repairs"],
     })
+
+
+# --------------------------------------------------------------------------
+# Stage 3C (first half): what-if scenarios
+# --------------------------------------------------------------------------
+
+# A scenario is two full policy runs, so it is roughly twice the work of one
+# simulate stage. Cap it below the optimise cap rather than at it.
+MAX_SCENARIO_ITEMS = int(os.getenv("MAX_SCENARIO_ITEMS",
+                                   str(max(4, MAX_OPTIMISE_ITEMS // 2))))
+
+
+def scenario_presets() -> dict:
+    """What the UI offers as one-click questions."""
+    return {
+        "presets": [
+            {"key": key, "label": label, "changes": changes}
+            for key, (label, changes) in scenarios.PRESETS.items()
+        ],
+        "bounds": {k: list(v) for k, v in scenarios.BOUNDS.items()},
+        "max_items": MAX_SCENARIO_ITEMS,
+    }
+
+
+def _scenario_from(params: dict) -> scenarios.Scenario:
+    """Request parameters -> a validated Scenario.
+
+    A preset supplies the starting point; explicit fields override it. Unknown
+    or out-of-range values raise here rather than being clamped, because a
+    silently altered question gets a confidently wrong answer.
+    """
+    overrides = {
+        field: params[field]
+        for field in scenarios.BOUNDS
+        if params.get(field) is not None
+    }
+    if params.get("preset"):
+        base = scenarios.preset(params["preset"])
+        if not overrides:
+            return base
+        label = base.label + " (adjusted)" if overrides else base.label
+        return scenarios.replace(base, label=label, **overrides)
+    if not overrides:
+        raise ValueError(
+            "a scenario needs either a preset or at least one changed field; "
+            f"presets are {sorted(scenarios.PRESETS)}")
+    return scenarios.Scenario(label="custom scenario", **overrides)
+
+
+def scenario_for_request(params: dict, on_stage=None) -> dict:
+    """Stage 3C `scenario`: re-solve under a changed network and diff.
+
+    Both legs run in this process against the same instance, so the comparison
+    is like-for-like. Two separate requests will differ by a few percent even
+    with identical inputs, because CP-SAT stops at a wall-clock limit - which is
+    also why the base leg is re-run here instead of cached.
+    """
+    spec = _scenario_from(params)
+    item_ids = list(params.get("item_ids") or [])
+    report = scenarios.compare(
+        spec,
+        item_ids=item_ids or None,
+        n_items=MAX_SCENARIO_ITEMS,
+        horizon=int(params.get("horizon_days", 28)),
+        planning_horizon=PLANNING_HORIZON_DAYS,
+        time_limit_s=SOLVER_TIME_LIMIT_S,
+        on_stage=on_stage,
+    )
+    return _jsonable(report)
+
+
+def validate_scenario(params: dict) -> dict:
+    """Parse a scenario request without running it. Raises ValueError if unsound.
+
+    The API calls this inside the request so a malformed what-if returns 422
+    immediately rather than a job id that fails two minutes later.
+    """
+    spec = _scenario_from(params)
+    return {"label": spec.label, "changes": spec.changes()}

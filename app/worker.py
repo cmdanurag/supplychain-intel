@@ -142,3 +142,66 @@ def run_pipeline(run_id: str) -> None:
             session.commit()
     finally:
         session.close()
+
+
+def run_scenario(run_id: str) -> None:
+    """Stage 3C job: solve the base network and a changed one, then diff them.
+
+    Deliberately a second entry point rather than a fifth pipeline stage. A
+    scenario answers a different question from a run - "what changes if the
+    world does" rather than "what should we do now" - and it reuses the same
+    row, the same status vocabulary and the same polling endpoint, so the client
+    needs no new machinery to wait for it.
+    """
+    session = SessionLocal()
+    t_start = time.monotonic()
+    marks: dict[str, float] = {}
+    try:
+        run = session.get(Run, run_id)
+        if run is None:
+            return
+
+        params = json.loads(run.params_json)
+        run.status = "running"
+        session.commit()
+
+        def on_stage(name: str, index: int) -> None:
+            """Called as each leg starts, so a poll can say which one is running."""
+            marks[name] = time.monotonic()
+            run.stage = f"solving {name}"
+            run.progress = 10 + index * 45
+            run.updated_at = utcnow()
+            session.commit()
+
+        t0 = time.monotonic()
+        report = optimiser.scenario_for_request(params, on_stage=on_stage)
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+        # One trace per leg, split by the solve time each leg reported, so the
+        # timings panel says where the wait went rather than showing one blob.
+        base_ms = int(report["base"]["solve_seconds"] * 1000)
+        scen_ms = int(report["scenario_result"]["solve_seconds"] * 1000)
+        _trace(session, run_id, 0, "scenario:base", base_ms,
+               report["scenario"]["label"])
+        _trace(session, run_id, 1, "scenario:changed", scen_ms,
+               json.dumps(report["scenario"]["changes"]))
+        _trace(session, run_id, 2, "scenario:diff",
+               max(0, elapsed_ms - base_ms - scen_ms), report["headline"])
+
+        run.result_json = json.dumps({"scenario": report})
+        run.status = "succeeded"
+        run.stage = "done"
+        run.progress = 100
+        run.duration_ms = int((time.monotonic() - t_start) * 1000)
+        session.commit()
+
+    except Exception as exc:  # noqa: BLE001 - top-level job guard, as run_pipeline
+        session.rollback()
+        run = session.get(Run, run_id)
+        if run is not None:
+            run.status = "failed"
+            run.error = f"{type(exc).__name__}: {exc}"[:2000]
+            run.duration_ms = int((time.monotonic() - t_start) * 1000)
+            session.commit()
+    finally:
+        session.close()

@@ -29,7 +29,11 @@ API_URL = _api_url()
 
 st.set_page_config(page_title="Supply Chain Intelligence", layout="wide")
 st.title("Supply Chain Intelligence Platform")
-st.caption("Stages 3A-3B live: LightGBM forecasts, CP-SAT multi-echelon optimiser, benchmarked on held-out demand. Explain is still a placeholder.")
+st.caption(
+    "LightGBM forecasts, a CP-SAT multi-echelon optimiser benchmarked on "
+    "held-out demand, and what-if scenarios that re-price a disruption. The "
+    "natural-language layer over those scenarios is still to come."
+)
 
 
 @st.cache_data(ttl=300)
@@ -37,6 +41,35 @@ def load_catalog() -> dict:
     response = requests.get(f"{API_URL}/api/catalog", timeout=10)
     response.raise_for_status()
     return response.json()
+
+
+@st.cache_data(ttl=300)
+def load_presets() -> dict:
+    """What-if questions the API offers. Empty dict if the API is older."""
+    try:
+        response = requests.get(f"{API_URL}/api/scenarios/presets", timeout=20)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return {}
+
+
+def poll_run(run_id: str, label: str) -> dict | None:
+    """Shared polling loop: both a pipeline run and a scenario report here."""
+    bar = st.progress(0, text="queued")
+    state = None
+    for _ in range(300):
+        try:
+            state = requests.get(f"{API_URL}/api/runs/{run_id}", timeout=20).json()
+        except requests.RequestException:
+            time.sleep(2)
+            continue
+        bar.progress(state["progress"] / 100,
+                     text=f"{label}: {state['stage']} ({state['progress']}%)")
+        if state["status"] in ("succeeded", "failed"):
+            break
+        time.sleep(2)
+    return state
 
 
 def wait_for_catalog(attempts: int = 9) -> dict:
@@ -83,10 +116,115 @@ with st.sidebar:
         stockout_multiplier = st.slider(
             "Stockout penalty (x lost gross margin)", 0.5, 6.0, 2.0, 0.5)
     go = st.button("Run pipeline", type="primary", use_container_width=True)
+
+    # --- Stage 3C: what-if. Kept in the same sidebar because it asks about the
+    # same item selection; the answer lands in its own section below.
+    st.divider()
+    st.header("What-if scenario")
+    st.caption(
+        "Re-solves the same policy under a changed network and reports what "
+        "moves. Two solves, so it takes about twice a pipeline run."
+    )
+    presets = load_presets()
+    preset_labels = {p["key"]: p["label"] for p in presets.get("presets", [])}
+    preset_labels["custom"] = "Custom: set the knobs myself"
+    preset_key = st.selectbox(
+        "Question", list(preset_labels), format_func=lambda k: preset_labels[k])
+    overrides: dict = {}
+    if preset_key == "custom":
+        overrides["supplier_lead_days"] = st.slider("Supplier lead time (days)", 1, 28, 7)
+        overrides["demand_pct"] = st.slider("Demand vs plan", 0.5, 2.0, 1.0, 0.05)
+        overrides["truck_capacity_pct"] = st.slider("Truck capacity", 0.3, 3.0, 1.0, 0.05)
+        overrides["dc_capacity_pct"] = st.slider("DC capacity", 0.3, 3.0, 1.0, 0.05)
+        overrides["delivery_cost_pct"] = st.slider("Delivery cost", 0.0, 5.0, 1.0, 0.25)
+    ask = st.button("Run what-if", use_container_width=True)
     st.caption(
         f"Trained through {catalog['trained_through']}. Forecast window "
         f"{catalog['forecast_window'][0]} to {catalog['forecast_window'][1]}."
     )
+
+if ask:
+    payload: dict = {"item_ids": items, "horizon_days": horizon}
+    if preset_key == "custom":
+        # Send only what the user actually moved; an unchanged knob must not
+        # look like a deliberate "set it to the default" instruction.
+        payload.update({k: v for k, v in overrides.items()})
+    else:
+        payload["preset"] = preset_key
+
+    st.subheader("What-if")
+    try:
+        resp = requests.post(f"{API_URL}/api/scenarios", json=payload, timeout=20)
+        if resp.status_code == 422:
+            st.error(resp.json().get("detail", "That scenario was rejected."))
+            st.stop()
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        st.error(f"Could not reach the API at {API_URL}: {exc}")
+        st.stop()
+
+    state = poll_run(resp.json()["run_id"], "scenario")
+    if state is None or state["status"] == "failed":
+        st.error(f"Scenario failed: {(state or {}).get('error')}")
+        st.stop()
+
+    report = (state.get("result") or {}).get("scenario", {})
+    if report:
+        base, alt, delta = (report["base"], report["scenario_result"],
+                            report["delta"])
+        st.success(report["headline"])
+        st.caption(
+            f"Changed: {report['scenario']['changes']} · both legs solved in "
+            f"this run against the same actual sales, "
+            f"{report['instance']['items']} items, "
+            f"{report['instance']['window'][0]} to {report['instance']['window'][1]}."
+        )
+        cols = st.columns(4)
+        cols[0].metric("Total cost", f"${alt['total_cost']:,.0f}",
+                       f"{delta['cost_pct']:+.1f}%", delta_color="inverse")
+        cols[1].metric("Fill rate", f"{alt['fill_rate']:.1%}",
+                       f"{delta['fill_rate_pp']:+.1f} pp")
+        cols[2].metric("Delivery days", alt["delivery_days"],
+                       f"{delta['delivery_days']:+}", delta_color="off")
+        cols[3].metric("PO lines", alt["po_lines"], f"{delta['po_lines']:+}",
+                       delta_color="off")
+        st.dataframe(
+            [{"measure": name, "base": b, "scenario": s}
+             for name, b, s in [
+                 ("total cost", f"${base['total_cost']:,.2f}",
+                  f"${alt['total_cost']:,.2f}"),
+                 ("fill rate", f"{base['fill_rate']:.1%}", f"{alt['fill_rate']:.1%}"),
+                 ("units short", f"{base['units_short']:,}", f"{alt['units_short']:,}"),
+                 ("stockout cost", f"${base['costs']['stockout']:,.2f}",
+                  f"${alt['costs']['stockout']:,.2f}"),
+                 ("ordering cost", f"${base['costs']['ordering']:,.2f}",
+                  f"${alt['costs']['ordering']:,.2f}"),
+                 ("delivery cost", f"${base['costs']['delivery']:,.2f}",
+                  f"${alt['costs']['delivery']:,.2f}"),
+                 ("holding cost", f"${base['costs']['holding']:,.2f}",
+                  f"${alt['costs']['holding']:,.2f}"),
+                 ("truck utilisation", f"{base['truck_utilisation_mean']:.0%}",
+                  f"{alt['truck_utilisation_mean']:.0%}"),
+                 ("planning horizon (days)", base["planning_horizon_days"],
+                  alt["planning_horizon_days"]),
+             ]],
+            use_container_width=True, hide_index=True,
+        )
+        if alt["relaxations"]:
+            st.warning(
+                "To stay feasible the solver had to give up: "
+                + "; ".join(alt["relaxations"])
+                + ". A scenario that relaxes a service constraint is at the "
+                  "edge of what the network can physically do."
+            )
+        st.caption(
+            "Baselines are not re-tuned here - this compares the optimiser "
+            "against itself under two networks, which is the honest way to "
+            "price a disruption. Re-running gives slightly different numbers "
+            "because CP-SAT stops at a time limit."
+        )
+        with st.expander("Raw scenario response"):
+            st.json(report)
 
 if go:
     if not stores or not items:
@@ -114,22 +252,8 @@ if go:
     run_id = resp.json()["run_id"]
     st.info(f"Run **{run_id}** accepted. Polling for results.")
 
-    bar = st.progress(0, text="queued")
     status_box = st.empty()
-    state = None
-
-    # The polling loop. This is the client half of the async pattern.
-    for _ in range(300):
-        try:
-            state = requests.get(f"{API_URL}/api/runs/{run_id}", timeout=10).json()
-        except requests.RequestException:
-            time.sleep(2)
-            continue
-
-        bar.progress(state["progress"] / 100, text=f"{state['stage']} ({state['progress']}%)")
-        if state["status"] in ("succeeded", "failed"):
-            break
-        time.sleep(2)
+    state = poll_run(run_id, "pipeline")
 
     if state is None:
         st.error("No response from the API.")
@@ -272,5 +396,9 @@ if go:
 
     with st.expander("Raw response"):
         st.json(state)
-else:
-    st.info("Set parameters in the sidebar and press **Run pipeline**.")
+elif not ask:
+    st.info(
+        "Set parameters in the sidebar, then press **Run pipeline** for the "
+        "forecast-optimise-benchmark pipeline, or **Run what-if** to price a "
+        "disruption against the same items."
+    )
