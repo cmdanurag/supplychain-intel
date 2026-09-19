@@ -181,7 +181,14 @@ def _scale(series: dict[str, np.ndarray], factor: float) -> dict[str, np.ndarray
 def _outcome(result, network, elapsed: float) -> dict:
     # solver_stats() flattens every re-solve's notes into one list; the same
     # constraint relaxed in three consecutive solves is one fact, not three.
-    relaxations = sorted(set(result.solver.get("relaxations", [])))
+    notes = list(result.solver.get("relaxations", []))
+    relaxations = sorted(set(notes))
+    # The bottom of the ladder is a different kind of answer from a rung of it.
+    # "No feasible plan found" means that re-solve committed nothing at all, so
+    # the week it covered ran on whatever stock happened to be on the shelf -
+    # a physical impossibility, not a costed trade-off, and the one result a
+    # reader must not mistake for an expensive-but-working plan.
+    gave_up = sum(1 for n in notes if "no feasible plan found" in n)
     return {
         "total_cost": round(result.total_cost, 2),
         "costs": {k: round(v, 2) for k, v in result.costs.items()},
@@ -194,6 +201,7 @@ def _outcome(result, network, elapsed: float) -> dict:
         "truck_utilisation_mean": round(result.truck_utilisation_mean, 3),
         "mean_store_inventory": round(result.mean_store_inventory, 1),
         "relaxations": relaxations,
+        "solves_with_no_feasible_plan": gave_up,
         "network": {
             "supplier_lead_days": network.supplier_lead_days,
             "store_lead_days": network.store_lead_days,
@@ -234,6 +242,11 @@ def _headline(scenario: Scenario, base: dict, alt: dict, delta: dict) -> str:
     if alt["relaxations"] and not base["relaxations"]:
         tail = (" The plan could only be built by relaxing a service "
                 "constraint, so this scenario is at the edge of feasibility.")
+    extra = alt["solves_with_no_feasible_plan"] - base["solves_with_no_feasible_plan"]
+    if extra > 0:
+        tail += (f" {extra} weekly re-solve(s) found no feasible plan at all and "
+                 f"committed nothing, so this is beyond what the network can "
+                 f"absorb, not merely expensive.")
     return (f"{scenario.label}: costs {abs(cost or 0):.1f}% {direction} "
             f"(${base['total_cost']:,.0f} -> ${alt['total_cost']:,.0f}) and "
             f"{service}.{tail}")

@@ -1,0 +1,588 @@
+{
+  "supplier_lead_doubles": {
+    "scenario": {
+      "label": "Supplier lead time doubles, 7 days to 14",
+      "changes": {
+        "supplier_lead_days": "7 -> 14"
+      },
+      "spec": {
+        "label": "Supplier lead time doubles, 7 days to 14",
+        "supplier_lead_days": 14,
+        "store_lead_days": 2,
+        "demand_pct": 1.0,
+        "dc_capacity_pct": 1.0,
+        "truck_capacity_pct": 1.0,
+        "shelf_capacity_pct": 1.0,
+        "order_cost_pct": 1.0,
+        "delivery_cost_pct": 1.0,
+        "stockout_multiplier": 2.0,
+        "annual_holding_rate": 0.25,
+        "service_level": 0.95
+      }
+    },
+    "instance": {
+      "store": "CA_1",
+      "items": 10,
+      "horizon_days": 28,
+      "window": [
+        "2016-04-25",
+        "2016-05-22"
+      ],
+      "evaluation": "both runs are scored on the same actual M5 sales; the scenario changes the network, not the demand realisation, unless demand_pct says otherwise"
+    },
+    "base": {
+      "total_cost": 1500.13,
+      "costs": {
+        "holding": 18.8,
+        "ordering": 276.0,
+        "delivery": 480.0,
+        "freight": 43.68,
+        "stockout": 635.14,
+        "terminal": 46.52
+      },
+      "fill_rate": 0.8545,
+      "units_short": 234,
+      "units_demanded": 1608,
+      "po_lines": 23,
+      "delivery_days": 8,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.267,
+      "mean_store_inventory": 122.5,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 18.9,
+      "planning_horizon_days": 14
+    },
+    "scenario_result": {
+      "total_cost": 2420.13,
+      "costs": {
+        "holding": 13.07,
+        "ordering": 216.0,
+        "delivery": 300.0,
+        "freight": 27.64,
+        "stockout": 1462.31,
+        "terminal": 401.11
+      },
+      "fill_rate": 0.6841,
+      "units_short": 508,
+      "units_demanded": 1608,
+      "po_lines": 18,
+      "delivery_days": 5,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.169,
+      "mean_store_inventory": 90.7,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 14,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 13.5,
+      "planning_horizon_days": 21
+    },
+    "delta": {
+      "cost_usd": 920.0,
+      "cost_pct": 61.33,
+      "fill_rate_pp": -17.04,
+      "units_short": 274,
+      "po_lines": -5,
+      "delivery_days": -3,
+      "by_cost_line": {
+        "holding": -5.73,
+        "ordering": -60.0,
+        "delivery": -180.0,
+        "freight": -16.04,
+        "stockout": 827.17,
+        "terminal": 354.59
+      }
+    },
+    "headline": "Supplier lead time doubles, 7 days to 14: costs 61.3% more ($1,500 -> $2,420) and service moves -17.0 points to 68.4%."
+  },
+  "truck_capacity_down_30": {
+    "scenario": {
+      "label": "Lose 30% of daily truck capacity",
+      "changes": {
+        "truck_capacity_pct": "100% -> 70% of base"
+      },
+      "spec": {
+        "label": "Lose 30% of daily truck capacity",
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "demand_pct": 1.0,
+        "dc_capacity_pct": 1.0,
+        "truck_capacity_pct": 0.7,
+        "shelf_capacity_pct": 1.0,
+        "order_cost_pct": 1.0,
+        "delivery_cost_pct": 1.0,
+        "stockout_multiplier": 2.0,
+        "annual_holding_rate": 0.25,
+        "service_level": 0.95
+      }
+    },
+    "instance": {
+      "store": "CA_1",
+      "items": 10,
+      "horizon_days": 28,
+      "window": [
+        "2016-04-25",
+        "2016-05-22"
+      ],
+      "evaluation": "both runs are scored on the same actual M5 sales; the scenario changes the network, not the demand realisation, unless demand_pct says otherwise"
+    },
+    "base": {
+      "total_cost": 1609.7,
+      "costs": {
+        "holding": 18.37,
+        "ordering": 276.0,
+        "delivery": 420.0,
+        "freight": 39.24,
+        "stockout": 727.52,
+        "terminal": 128.57
+      },
+      "fill_rate": 0.8159,
+      "units_short": 296,
+      "units_demanded": 1608,
+      "po_lines": 23,
+      "delivery_days": 7,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.24,
+      "mean_store_inventory": 118.3,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 18.8,
+      "planning_horizon_days": 14
+    },
+    "scenario_result": {
+      "total_cost": 1772.33,
+      "costs": {
+        "holding": 17.82,
+        "ordering": 276.0,
+        "delivery": 660.0,
+        "freight": 42.4,
+        "stockout": 644.89,
+        "terminal": 131.22
+      },
+      "fill_rate": 0.8663,
+      "units_short": 215,
+      "units_demanded": 1608,
+      "po_lines": 23,
+      "delivery_days": 11,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.371,
+      "mean_store_inventory": 108.5,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 102,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 17.5,
+      "planning_horizon_days": 14
+    },
+    "delta": {
+      "cost_usd": 162.63,
+      "cost_pct": 10.1,
+      "fill_rate_pp": 5.04,
+      "units_short": -81,
+      "po_lines": 0,
+      "delivery_days": 4,
+      "by_cost_line": {
+        "holding": -0.55,
+        "ordering": 0.0,
+        "delivery": 240.0,
+        "freight": 3.16,
+        "stockout": -82.63,
+        "terminal": 2.65
+      }
+    },
+    "headline": "Lose 30% of daily truck capacity: costs 10.1% more ($1,610 -> $1,772) and service moves +5.0 points to 86.6%."
+  },
+  "demand_surge_20": {
+    "scenario": {
+      "label": "Demand runs 20% above plan",
+      "changes": {
+        "demand_pct": "100% -> 120% of base"
+      },
+      "spec": {
+        "label": "Demand runs 20% above plan",
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "demand_pct": 1.2,
+        "dc_capacity_pct": 1.0,
+        "truck_capacity_pct": 1.0,
+        "shelf_capacity_pct": 1.0,
+        "order_cost_pct": 1.0,
+        "delivery_cost_pct": 1.0,
+        "stockout_multiplier": 2.0,
+        "annual_holding_rate": 0.25,
+        "service_level": 0.95
+      }
+    },
+    "instance": {
+      "store": "CA_1",
+      "items": 10,
+      "horizon_days": 28,
+      "window": [
+        "2016-04-25",
+        "2016-05-22"
+      ],
+      "evaluation": "both runs are scored on the same actual M5 sales; the scenario changes the network, not the demand realisation, unless demand_pct says otherwise"
+    },
+    "base": {
+      "total_cost": 1548.84,
+      "costs": {
+        "holding": 19.07,
+        "ordering": 276.0,
+        "delivery": 420.0,
+        "freight": 39.52,
+        "stockout": 610.81,
+        "terminal": 183.44
+      },
+      "fill_rate": 0.834,
+      "units_short": 267,
+      "units_demanded": 1608,
+      "po_lines": 23,
+      "delivery_days": 7,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.242,
+      "mean_store_inventory": 127.9,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 17.5,
+      "planning_horizon_days": 14
+    },
+    "scenario_result": {
+      "total_cost": 2382.55,
+      "costs": {
+        "holding": 15.98,
+        "ordering": 324.0,
+        "delivery": 600.0,
+        "freight": 45.24,
+        "stockout": 1004.96,
+        "terminal": 392.37
+      },
+      "fill_rate": 0.8015,
+      "units_short": 381,
+      "units_demanded": 1919,
+      "po_lines": 27,
+      "delivery_days": 10,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.277,
+      "mean_store_inventory": 99.4,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 18.6,
+      "planning_horizon_days": 14
+    },
+    "delta": {
+      "cost_usd": 833.71,
+      "cost_pct": 53.83,
+      "fill_rate_pp": -3.25,
+      "units_short": 114,
+      "po_lines": 4,
+      "delivery_days": 3,
+      "by_cost_line": {
+        "holding": -3.09,
+        "ordering": 48.0,
+        "delivery": 180.0,
+        "freight": 5.72,
+        "stockout": 394.15,
+        "terminal": 208.93
+      }
+    },
+    "headline": "Demand runs 20% above plan: costs 53.8% more ($1,549 -> $2,383) and service moves -3.2 points to 80.2%."
+  },
+  "freight_costs_double": {
+    "scenario": {
+      "label": "Delivery cost doubles, $60 to $120 a day",
+      "changes": {
+        "delivery_cost_pct": "100% -> 200% of base"
+      },
+      "spec": {
+        "label": "Delivery cost doubles, $60 to $120 a day",
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "demand_pct": 1.0,
+        "dc_capacity_pct": 1.0,
+        "truck_capacity_pct": 1.0,
+        "shelf_capacity_pct": 1.0,
+        "order_cost_pct": 1.0,
+        "delivery_cost_pct": 2.0,
+        "stockout_multiplier": 2.0,
+        "annual_holding_rate": 0.25,
+        "service_level": 0.95
+      }
+    },
+    "instance": {
+      "store": "CA_1",
+      "items": 10,
+      "horizon_days": 28,
+      "window": [
+        "2016-04-25",
+        "2016-05-22"
+      ],
+      "evaluation": "both runs are scored on the same actual M5 sales; the scenario changes the network, not the demand realisation, unless demand_pct says otherwise"
+    },
+    "base": {
+      "total_cost": 1437.86,
+      "costs": {
+        "holding": 19.39,
+        "ordering": 276.0,
+        "delivery": 480.0,
+        "freight": 44.4,
+        "stockout": 476.21,
+        "terminal": 141.86
+      },
+      "fill_rate": 0.8893,
+      "units_short": 178,
+      "units_demanded": 1608,
+      "po_lines": 23,
+      "delivery_days": 8,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.272,
+      "mean_store_inventory": 138.7,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 18.6,
+      "planning_horizon_days": 14
+    },
+    "scenario_result": {
+      "total_cost": 1940.55,
+      "costs": {
+        "holding": 18.82,
+        "ordering": 264.0,
+        "delivery": 840.0,
+        "freight": 37.76,
+        "stockout": 643.11,
+        "terminal": 136.86
+      },
+      "fill_rate": 0.7991,
+      "units_short": 323,
+      "units_demanded": 1608,
+      "po_lines": 22,
+      "delivery_days": 7,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.231,
+      "mean_store_inventory": 122.7,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 120.0
+      },
+      "solve_seconds": 16.6,
+      "planning_horizon_days": 14
+    },
+    "delta": {
+      "cost_usd": 502.69,
+      "cost_pct": 34.96,
+      "fill_rate_pp": -9.02,
+      "units_short": 145,
+      "po_lines": -1,
+      "delivery_days": -1,
+      "by_cost_line": {
+        "holding": -0.57,
+        "ordering": -12.0,
+        "delivery": 360.0,
+        "freight": -6.64,
+        "stockout": 166.9,
+        "terminal": -5.0
+      }
+    },
+    "headline": "Delivery cost doubles, $60 to $120 a day: costs 35.0% more ($1,438 -> $1,941) and service moves -9.0 points to 79.9%."
+  },
+  "dc_space_down_40": {
+    "scenario": {
+      "label": "DC storage cut by 40%",
+      "changes": {
+        "dc_capacity_pct": "100% -> 60% of base"
+      },
+      "spec": {
+        "label": "DC storage cut by 40%",
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "demand_pct": 1.0,
+        "dc_capacity_pct": 0.6,
+        "truck_capacity_pct": 1.0,
+        "shelf_capacity_pct": 1.0,
+        "order_cost_pct": 1.0,
+        "delivery_cost_pct": 1.0,
+        "stockout_multiplier": 2.0,
+        "annual_holding_rate": 0.25,
+        "service_level": 0.95
+      }
+    },
+    "instance": {
+      "store": "CA_1",
+      "items": 10,
+      "horizon_days": 28,
+      "window": [
+        "2016-04-25",
+        "2016-05-22"
+      ],
+      "evaluation": "both runs are scored on the same actual M5 sales; the scenario changes the network, not the demand realisation, unless demand_pct says otherwise"
+    },
+    "base": {
+      "total_cost": 1549.01,
+      "costs": {
+        "holding": 18.63,
+        "ordering": 276.0,
+        "delivery": 420.0,
+        "freight": 39.6,
+        "stockout": 606.25,
+        "terminal": 188.53
+      },
+      "fill_rate": 0.8445,
+      "units_short": 250,
+      "units_demanded": 1608,
+      "po_lines": 23,
+      "delivery_days": 7,
+      "dc_utilisation_peak": 0.708,
+      "truck_utilisation_mean": 0.242,
+      "mean_store_inventory": 122.8,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 0,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 582,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 18.5,
+      "planning_horizon_days": 14
+    },
+    "scenario_result": {
+      "total_cost": 2347.33,
+      "costs": {
+        "holding": 13.73,
+        "ordering": 132.0,
+        "delivery": 360.0,
+        "freight": 28.32,
+        "stockout": 1621.33,
+        "terminal": 191.96
+      },
+      "fill_rate": 0.6461,
+      "units_short": 569,
+      "units_demanded": 1608,
+      "po_lines": 11,
+      "delivery_days": 6,
+      "dc_utilisation_peak": 1.181,
+      "truck_utilisation_mean": 0.173,
+      "mean_store_inventory": 79.9,
+      "relaxations": [
+        "aggregate service level of 95% dropped; stockout penalties alone now drive availability: instance was INFEASIBLE with it",
+        "no feasible plan found",
+        "per-item service floor of 80% dropped: instance was INFEASIBLE with it"
+      ],
+      "solves_with_no_feasible_plan": 1,
+      "network": {
+        "supplier_lead_days": 7,
+        "store_lead_days": 2,
+        "dc_capacity_units": 349,
+        "truck_capacity_units_per_day": 146,
+        "order_cost_per_line": 12.0,
+        "delivery_fixed_cost": 60.0
+      },
+      "solve_seconds": 7.5,
+      "planning_horizon_days": 14
+    },
+    "delta": {
+      "cost_usd": 798.32,
+      "cost_pct": 51.54,
+      "fill_rate_pp": -19.84,
+      "units_short": 319,
+      "po_lines": -12,
+      "delivery_days": -1,
+      "by_cost_line": {
+        "holding": -4.9,
+        "ordering": -144.0,
+        "delivery": -60.0,
+        "freight": -11.28,
+        "stockout": 1015.08,
+        "terminal": 3.43
+      }
+    },
+    "headline": "DC storage cut by 40%: costs 51.5% more ($1,549 -> $2,347) and service moves -19.8 points to 64.6%. 1 weekly re-solve(s) found no feasible plan at all and committed nothing, so this is beyond what the network can absorb, not merely expensive."
+  }
+}

@@ -8,7 +8,9 @@ Demand forecasting → inventory optimisation → scenario analysis, deployed as
 > re-solved on a rolling horizon and benchmarked against three classical
 > inventory policies on held-out demand — **25.6% cheaper than a tuned fixed
 > reorder-point policy at matched service level** (range 23.2–28.6% over 6 runs).
-> Only `explain` (Stage 3C) is still a placeholder — see [Roadmap](#roadmap).
+> Stage 3C is half done: what-if scenarios re-price a disruption (lead time,
+> capacity, demand, freight cost) through the same solver, and the
+> natural-language layer over them is what remains.
 
 ### Live demo
 
@@ -16,6 +18,7 @@ Demand forecasting → inventory optimisation → scenario analysis, deployed as
 |---|---|
 | **App** | https://supplychain-intel.streamlit.app |
 | **API docs** | https://supplychain-intel.onrender.com/docs |
+| **What-if** | in the app's sidebar, or `POST /api/scenarios` |
 | **Health** | https://supplychain-intel.onrender.com/health |
 
 Both run on free tiers, so **the API sleeps when idle and takes 30–60s to wake**
@@ -178,7 +181,8 @@ Each stage replaces one function in `app/worker.py`. Nothing else changes.
 | **3A** ✅ | `fake_forecast()` | LightGBM on M5 data, rolling-origin backtested | 6 |
 | **3B** ✅ | `fake_optimise()` | OR-Tools CP-SAT multi-echelon inventory model | 8 |
 | **3B** ✅ | `fake_simulate()` | Daily-bucket playout + 3 classical benchmark policies | 8 |
-| **3C** | `fake_explain()` | LLM tool-calling agent for what-if scenarios | 9 |
+| **3C** ◐ | `fake_explain()` | What-if scenarios: **done**, parameterised. The
+natural-language layer over them is not. | 9 |
 
 ### Stage 3A checklist
 - [x] Load M5 data, build the item → dept → store → state hierarchy
@@ -208,11 +212,23 @@ Each stage replaces one function in `app/worker.py`. Nothing else changes.
       this is now the next real task, not a hypothetical one
 
 ### Stage 3C checklist
-- [ ] Expose `forecast`, `optimise`, `simulate` as agent tools
-- [ ] Natural language → Pydantic constraint diff (never free text)
-- [ ] Infeasibility handling: explain, don't crash
+- [x] A scenario is a **validated Pydantic/dataclass diff**, never free text —
+      `optimisation/scenario.py` bounds every field and refuses rather than
+      clamps, because silently answering a different question is the failure
+      mode worth engineering against
+- [x] Re-solve under the changed network and diff cost, service and the
+      physical counts, through `POST /api/scenarios` on the same polling
+      contract as a run
+- [x] Infeasibility explains itself: the relaxation ladder's notes are
+      reported, and a re-solve that found no plan at all is flagged separately
+      from one that merely relaxed a constraint
+- [ ] Natural language → that same validated diff (the LLM's only job)
 - [ ] Log tool, args, latency, tokens, cost per step
 - [ ] Hard spend cap and per-session request quota
+
+The order is deliberate. The parameterised layer is the part that has to be
+right; the language layer only chooses which numbers to put in it, and it can
+be added without touching anything below.
 
 ---
 
@@ -290,6 +306,39 @@ reference, not a lower bound — see [DECISIONS.md](DECISIONS.md) entry 21.
 Reproduce with `python -m optimisation.benchmark --items 60 --repeat 6`; full
 output, including per-item fill quantiles and every constraint relaxation, in
 `models/optimiser_benchmark.json`.
+
+### Stage 3C — what-if scenarios
+
+The optimiser re-solved under a changed network, against the same actual sales.
+Ten items, 6s per solve, one run each — illustrative, not a benchmark:
+
+| Question | Total cost | Fill rate | Re-solves with no feasible plan |
+|---|---|---|---|
+| Supplier lead time doubles, 7 → 14 days | $1,500 → $2,420 (+61.3%) | 85.5% → 68.4% (−17.0pp) | 0 |
+| Lose 30% of daily truck capacity | $1,610 → $1,772 (+10.1%) | 81.6% → 86.6% (+5.0pp) | 0 |
+| Demand runs 20% above plan | $1,549 → $2,383 (+53.8%) | 83.4% → 80.2% (−3.2pp) | 0 |
+| Delivery cost doubles, $60 → $120/day | $1,438 → $1,941 (+35.0%) | 88.9% → 79.9% (−9.0pp) | 0 |
+| DC storage cut by 40% | $1,549 → $2,347 (+51.5%) | 84.5% → 64.6% (−19.8pp) | **1** |
+
+**Read the magnitudes loosely.** Each leg is one CP-SAT run under a wall-clock
+limit, so re-running moves the numbers by several points — the truck scenario
+came out at +24.3% on an earlier run, and its fill rate rising above base is
+noise, not an effect. What is stable is the direction and the ranking: lead time
+and DC space hurt most, a truck squeeze is absorbed by adding delivery days, and
+a higher fixed delivery cost is paid for partly in service as the optimiser
+consolidates into fewer trips. For a quotable figure, raise the item count and
+the time limit and repeat the run.
+
+**The last column is the one that matters.** Every leg of every scenario relaxes
+*something* — 95% service is not reachable in this instance, which is exactly
+why Stage 3B's achieved fill is ~82% — so "relaxed a constraint" is not news. A
+re-solve that exhausts the ladder and finds no plan at all is: that week
+committed nothing, and the cost shown is a floor rather than a plan. Cutting DC
+space by 40% crosses that line; nothing else here does.
+
+Reproduce with `python -m optimisation.scenario --preset dc_space_down_40
+--items 10`, or `--list` for the presets. Full output in
+`models/scenario_examples.json`.
 
 ### Stage 3A — forecasting
 

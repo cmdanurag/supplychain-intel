@@ -701,3 +701,50 @@ by side, a stable numerator against a bimodal ratio pointed straight at the
 denominator. Reaching for the explanation before the disaggregation is how
 plausible causes get mistaken for real ones, and the bisection would have
 survived indefinitely underneath a caveat about solver noise.
+
+---
+
+## Stage 3C — scenarios, and later the agent over them
+
+## 24. What-if scenarios are parameters, and the baselines are not re-tuned
+
+**Decision.** Stage 3C's first half exposes the network's structural numbers —
+lead times, DC/truck/shelf capacity, the two fixed costs, the demand level, the
+service target — as a bounded `Scenario` object, rebuilds the network from it,
+and re-runs the *same* CP-SAT policy against the *same* actual demand. The
+answer is a diff. No baseline is re-tuned, and no new percentage is quoted.
+
+**Why not re-tune the baselines.** The Stage 3B headline needs baselines tuned
+to matched service, which costs 150 simulations per baseline. That is right for
+a number measured once and written down. It is wrong for a question asked
+interactively, and it would also invite the wrong reading: "we beat reorder
+point by 31% under disruption" is a claim about the baseline's tuning, not about
+the disruption. Comparing the optimiser against itself answers what was actually
+asked — what does this change cost *us* — and it costs two solves.
+
+**Bounds refuse rather than clamp.** A request for `demand_pct: 9` is rejected
+with a 422, not silently solved at 2.0. A clamped scenario returns a confident
+answer to a question nobody asked, which is worse than an error, and the API
+validates synchronously so the caller learns before a job id exists.
+
+**Two things the first runs taught, both now in the code.**
+
+The planning horizon has to outlast the inbound lead time. At 14 days of lead
+against a 14-day planning window the solver ordered *nothing at all* for the
+whole 28 days: an order placed on day 0 arrives on day 14, past the last day the
+model can see, so it can never pay for itself inside the window. The plan window
+now stretches to lead time plus one commit period — the same rule a planner
+follows by hand — and it is a good reminder that an MPC horizon is not a free
+parameter.
+
+"No feasible plan found" is a different answer from "a constraint was relaxed",
+and the report separates them. Every leg of every scenario relaxes *something*,
+because 95% service is unreachable in this instance and the Stage 3B fill rate
+of ~82% says so. But a re-solve that exhausts the ladder committed nothing for
+that week, which is a physical impossibility rather than a costed trade-off. Cut
+DC space by 40% and exactly that happens. Reporting both as "relaxed" would hide
+the only result a reader must not misread.
+
+**Demand scaling does not scale capacity.** Capacities are sized from measured
+mean demand, so a 20% surge runs against the same warehouse, truck and shelf.
+Scaling them together would answer a question nobody asked.

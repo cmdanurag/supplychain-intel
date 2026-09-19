@@ -210,6 +210,15 @@ if ask:
              ]],
             use_container_width=True, hide_index=True,
         )
+        gave_up = (alt["solves_with_no_feasible_plan"]
+                   - base["solves_with_no_feasible_plan"])
+        if gave_up > 0:
+            st.error(
+                f"{gave_up} weekly re-solve(s) found no feasible plan at all "
+                f"and committed nothing. This scenario is past what the network "
+                f"can physically absorb, so read the cost as a floor: a real "
+                f"operation would be expediting, not replenishing."
+            )
         if alt["relaxations"]:
             st.warning(
                 "To stay feasible the solver had to give up: "

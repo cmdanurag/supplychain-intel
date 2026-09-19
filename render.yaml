@@ -23,6 +23,8 @@ services:
         value: "5"
       - key: PLANNING_HORIZON_DAYS
         value: "14"
+      - key: MAX_SCENARIO_ITEMS
+        value: "6"
       - key: SOLVER_WORKERS
         value: "1"
       - key: ALLOWED_ORIGINS
